@@ -721,7 +721,7 @@ struct LiquidTodayView: View {
                 NavigationLink(value: TabRoute.metric(HeroRingMetric.effort)) {
                     WhoopPillarGauge(
                         title: "Strain",
-                        value: strain.map { UnitFormatter.effortDisplay(effortStrain(displayDay) ?? 0, scale: effortScale) },
+                        value: effortStrain(displayDay).map { UnitFormatter.effortDisplay($0, scale: effortScale) },
                         progress: strain.map { $0 / strainMaximum },
                         kind: .strain,
                         diameter: 96,
