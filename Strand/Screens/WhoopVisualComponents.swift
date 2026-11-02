@@ -35,7 +35,7 @@ struct WhoopPillarGauge: View {
                 if let progress, progress.isFinite {
                     Circle()
                         .trim(from: 0, to: min(1, max(0, progress)))
-                        .stroke(kind.tint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                        .stroke(kind.tint, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                 }
                 VStack(spacing: 3) {
