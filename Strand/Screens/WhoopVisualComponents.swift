@@ -24,14 +24,14 @@ struct WhoopPillarGauge: View {
     let value: String?
     let progress: Double?
     let kind: WhoopPillarKind
-    var diameter: CGFloat = 156
+    var diameter: CGFloat = 112
     var footnote: String? = nil
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 7) {
             ZStack {
                 Circle()
-                    .stroke(kind.track, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .stroke(kind.track, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 if let progress, progress.isFinite {
                     Circle()
                         .trim(from: 0, to: min(1, max(0, progress)))
@@ -94,7 +94,7 @@ struct WhoopMetricRow: View {
             Spacer(minLength: 8)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(value ?? "--")
-                    .font(StrandFont.number(22, weight: .semibold))
+                    .font(StrandFont.number(20, weight: .semibold))
                     .foregroundStyle(.white)
                 if let unit {
                     Text(unit)
@@ -103,7 +103,7 @@ struct WhoopMetricRow: View {
                 }
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
     }
 }
@@ -135,14 +135,14 @@ struct WhoopReferenceCard<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             content
         }
-        .padding(16)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(WhoopReferencePalette.greyBlue, in: RoundedRectangle(cornerRadius: 18))
+        .background(WhoopReferencePalette.greyBlue, in: RoundedRectangle(cornerRadius: 14))
         .overlay {
-            RoundedRectangle(cornerRadius: 18)
+            RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
         }
     }
