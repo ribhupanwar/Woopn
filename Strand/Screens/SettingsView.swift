@@ -155,8 +155,8 @@ struct SettingsView: View {
     @AppStorage(HydrationStore.enabledKey) private var hydrationEnabled = false
 
     /// "Auto-detect workouts" (default ON). Today scans recent HR and corroborates with stored motion when available.
-    /// sustained-elevated window and offers — via a single dismissible card — to save it as a workout.
-    /// Nothing is ever created automatically. Mirrors the Android `NoopPrefs.KEY_AUTO_DETECT_WORKOUTS`.
+    /// Qualified windows are automatically saved as generic workouts; if persistence fails, a manual
+    /// fallback card remains. Mirrors the Android `NoopPrefs.KEY_AUTO_DETECT_WORKOUTS`.
     @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var autoDetectWorkoutsEnabled = true
 
     /// "Journal reminder" (#627, default ON). When ON, Today shows the persistent journal widget
@@ -1705,9 +1705,9 @@ struct SettingsView: View {
                 }
                 .toggleStyle(.switch)
                 .tint(StrandPalette.accent)
-                .accessibilityHint("Suggests a workout after sustained elevated heart rate, corroborated by stored motion when available; you choose whether to save it")
+                .accessibilityHint("Automatically saves a workout after sustained elevated heart rate, corroborated by stored motion when available")
 
-                Text("After a sync, NOOP looks over your recent heart rate for a sustained, raised stretch that looks like exercise and offers to save it. It only ever suggests. Nothing is saved until you tap Save, and you can dismiss any suggestion. Turning this off stops future suggestions but keeps your existing workout history. Deliberately conservative, so the odd workout may be missed. On \(Platform.deviceNounPhrase) only.")
+                Text("After a sync, NOOP checks recent heart rate for sustained, raised effort and automatically logs qualifying windows as generic Workouts. Stored motion is used as confirmation when available; otherwise detection falls back to heart rate. Turning this off stops future automatic logging but keeps your workout history. Deliberately conservative, so some workouts may be missed. On \(Platform.deviceNounPhrase) only.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
