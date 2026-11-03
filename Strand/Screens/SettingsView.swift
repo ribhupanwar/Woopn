@@ -154,7 +154,7 @@ struct SettingsView: View {
     // hidden. Mirrors the Android pref so the toggle reads the same on both platforms.
     @AppStorage(HydrationStore.enabledKey) private var hydrationEnabled = false
 
-    /// Opt-in "Auto-detect workouts" (default OFF). When ON, Today scans the last day or two of HR for a
+    /// "Auto-detect workouts" (default ON). Today scans recent HR and corroborates with stored motion when available.
     /// sustained-elevated window and offers — via a single dismissible card — to save it as a workout.
     /// Nothing is ever created automatically. Mirrors the Android `NoopPrefs.KEY_AUTO_DETECT_WORKOUTS`.
     @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var autoDetectWorkoutsEnabled = true
