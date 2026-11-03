@@ -1707,11 +1707,6 @@ struct SettingsView: View {
                 .tint(StrandPalette.accent)
                 .accessibilityHint("Automatically saves a workout after sustained elevated heart rate, corroborated by stored motion when available")
 
-                Text("After a sync, NOOP checks recent heart rate for sustained, raised effort and automatically logs qualifying windows as generic Workouts. Stored motion is used as confirmation when available; otherwise detection falls back to heart rate. Turning this off stops future automatic logging but keeps your workout history. Deliberately conservative, so some workouts may be missed. On \(Platform.deviceNounPhrase) only.")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-
                 Text("Skips sessions that overlap a saved or imported workout, including workouts from Apple Health.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
