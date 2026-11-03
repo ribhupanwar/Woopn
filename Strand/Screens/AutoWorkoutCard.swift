@@ -136,8 +136,13 @@ struct AutoWorkoutCard: View {
         saving = true
         handledThisSession = true
         Task {
-            _ = await repo.saveDetectedWorkout(w)
-            await repo.refresh()   // surfaces the new workout + drops it from re-suggestion
+            let didSave = await repo.saveDetectedWorkout(w)
+            if didSave {
+                candidate = nil
+                await repo.refresh()   // surfaces the new workout + drops it from re-suggestion
+            } else {
+                handledThisSession = false
+            }
             saving = false
         }
     }
