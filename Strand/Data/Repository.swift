@@ -3285,7 +3285,7 @@ final class Repository: ObservableObject {
         } else {
             candidates = AutoWorkoutDetector.detect(hr: hr, restingBpm: restingBpm,
                                                     motion: motionEvidence, savedSpans: savedSpans,
-                                                    minimumSustainedMinutes: AutoWorkoutDetector.minSustainedMin)
+                                                    minimumSustainedMinutes: 10.0)
         }
         return Self.selectAutoDetectCandidate(
             candidates,
