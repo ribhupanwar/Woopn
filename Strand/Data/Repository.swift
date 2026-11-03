@@ -3256,15 +3256,16 @@ final class Repository: ObservableObject {
         let saved = await workoutRows()
         let savedSpans = saved.map { SavedWorkoutSpan(startSec: $0.startTs, endSec: $0.endTs) }
 
-        // Workouts & GPS test mode: the published 12-minute result remains byte-identical. Aggregate,
-        // local-only comparisons include that 12-minute baseline plus the 10- and 15-minute alternatives.
-        // Shadow candidates are compared only with manual/imported labels; legacy detector rows are not
-        // ground truth. No shadow output can mutate the DB, visible card, daily scores or anything off-device.
+        // WHOOP-reference auto-detection policy: sustained, significant cardiovascular exertion
+        // for at least 10 minutes. The reference app exposes a 10-minute activity-detection caption;
+        // its executable classifier is proprietary, so retain our transparent HR + motion gates
+        // rather than claiming a byte-for-byte port. The detector's 12-minute default remains
+        // unchanged for other callers and Android parity. Shadow comparisons remain local-only.
         let candidates: [DetectedWorkout]
         if TestCentre.active(.workouts), workoutsLog != nil {
             let (results, trace) = AutoWorkoutDetector.detectTrace(
                 hr: hr, restingBpm: restingBpm, motion: motionEvidence, savedSpans: savedSpans,
-                minimumSustainedMinutes: AutoWorkoutDetector.minSustainedMin,
+                minimumSustainedMinutes: 10.0,
                 path: "autoDetect")
             for line in trace { emitWorkouts(line) }
             let labelledSpans = saved
