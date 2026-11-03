@@ -246,7 +246,7 @@ enum PuffinExperiment {
     /// SUSTAINED-ELEVATED window (resting HR + 30 bpm held ≥ 12 min) that doesn't overlap a saved workout,
     /// and surface ONE dismissible Today card offering to save it as a manual-style workout. Pure read +
     /// suggestion: nothing is ever created without the user tapping Save, and turning this OFF stops all
-    /// detection and hides the card. Default OFF. Mirrors the Android `NoopPrefs.KEY_AUTO_DETECT_WORKOUTS`.
+    /// detection and hides the card. An explicit OFF choice is preserved.
     static let autoDetectWorkoutsKey = "noopAutoDetectWorkouts"
 
     static var autoDetectWorkoutsEnabled: Bool {
