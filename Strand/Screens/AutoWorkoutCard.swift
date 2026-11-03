@@ -4,7 +4,7 @@ import StrandAnalytics
 
 // MARK: - Auto-detected workout prompt (Today screen)
 //
-// A single, dismissible Today card that appears ONLY when the opt-in "Auto-detect workouts"
+// A single, dismissible Today card that appears when "Auto-detect workouts"
 // toggle is on and `Repository.autoDetectCandidate()` finds a recent sustained-elevated HR
 // window that isn't already saved and wasn't previously dismissed.
 //
