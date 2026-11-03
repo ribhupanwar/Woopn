@@ -4,13 +4,13 @@ import StrandAnalytics
 
 // MARK: - Auto-detected workout prompt (Today screen)
 //
-// A single, dismissible Today card that appears ONLY when the opt-in "Auto-detect workouts"
+// A single, dismissible Today card that appears when "Auto-detect workouts"
 // toggle is on and `Repository.autoDetectCandidate()` finds a recent sustained-elevated HR
 // window that isn't already saved and wasn't previously dismissed.
 //
-// It only ever SUGGESTS: tapping Save creates a manual-style "Workout" for the window (via the
-// same manual-save path the edit sheet uses); the X dismisses it durably so it never re-prompts.
-// Nothing is created automatically. Design-Reset compliant — a flat NoopCard using NoopMetrics /
+// Automatically saves a detected window through the same manual-save path used by the edit sheet.
+// If persistence fails, the suggestion card remains as a manual fallback. Dismissal is still durable.
+// Design-Reset compliant — a flat NoopCard using NoopMetrics /
 // StrandPalette / StrandFont, no gold, matching the other Today cards.
 
 struct AutoWorkoutCard: View {
@@ -18,7 +18,7 @@ struct AutoWorkoutCard: View {
     @EnvironmentObject var repo: Repository
 
     /// Whether the toggle is on. Read here too so the card disappears the instant it's switched off.
-    @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var autoDetectEnabled = false
+    @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var autoDetectEnabled = true
 
     /// The current suggestion, loaded in `.task`. nil → nothing to show.
     @State private var candidate: DetectedWorkout?
@@ -109,17 +109,40 @@ struct AutoWorkoutCard: View {
     private func reload() async {
         guard autoDetectEnabled else { candidate = nil; return }
         let next = await repo.autoDetectCandidate()
-        // A fresh scan resets the session guard so a NEW window can surface after one is handled.
+        // A fresh scan resets the session guard so a NEW window can be handled after one is saved.
         if next != candidate { handledThisSession = false }
         candidate = next
+
+        // WHOOP-style automatic logging: save the newest qualified window without requiring a tap.
+        // The repository excludes overlapping saved workouts, and handledThisSession prevents a
+        // second write while persistence/refresh is in flight. On write failure, retain the card
+        // below as a manual fallback rather than silently losing the detected window.
+        guard let next, !handledThisSession else { return }
+        handledThisSession = true
+        saving = true
+        Task {
+            let didSave = await repo.saveDetectedWorkout(next)
+            saving = false
+            if didSave {
+                candidate = nil
+                await repo.refresh()
+            } else {
+                handledThisSession = false
+            }
+        }
     }
 
     private func save(_ w: DetectedWorkout) {
         saving = true
         handledThisSession = true
         Task {
-            _ = await repo.saveDetectedWorkout(w)
-            await repo.refresh()   // surfaces the new workout + drops it from re-suggestion
+            let didSave = await repo.saveDetectedWorkout(w)
+            if didSave {
+                candidate = nil
+                await repo.refresh()   // surfaces the new workout + drops it from re-suggestion
+            } else {
+                handledThisSession = false
+            }
             saving = false
         }
     }

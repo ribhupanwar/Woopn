@@ -5,10 +5,9 @@ import WhoopStore
 import StrandAnalytics
 @testable import Strand
 
-/// #1735/#2187: the analytics detector may enrich workouts the user already logged, but the opt-in
-/// confirmation card is the only path that creates a new visible automatic workout. A scoring pass must
-/// therefore preserve legacy `sport="detected"` history verbatim, avoid inserting a fresh generic row,
-/// and keep the useful overlap backfill for real manual/imported sessions.
+/// #1735/#2187: the analytics detector may enrich workouts the user already logged. Automatic workout
+/// detection persists qualified windows through the repository's manual-workout path; a scoring pass
+/// separately preserves legacy `sport="detected"` history and keeps overlap backfill for real sessions.
 @MainActor
 final class DetectedWorkoutReconciliationTests: XCTestCase {
     private let deviceId = "my-whoop"
@@ -164,7 +163,7 @@ final class DetectedWorkoutReconciliationTests: XCTestCase {
         XCTAssertEqual(rows, [merged], "a successful merge must leave only the durable replacement")
     }
 
-    func testOptInCandidatePublishesTwelveMinutesAndOnlyLogsTenFifteenMinuteShadows() async throws {
+    func testOptInCandidateUsesTenMinutePolicyAndAutomaticallyPersistsWorkout() async throws {
         try await withPreferences {
             UserDefaults.standard.set(true, forKey: PuffinExperiment.autoDetectWorkoutsKey)
             let store = try await WhoopStore.inMemory()
@@ -177,26 +176,29 @@ final class DetectedWorkoutReconciliationTests: XCTestCase {
             var diagnostics: [String] = []
             repo.workoutsLog = { diagnostics.append($0) }
 
-            let candidate = await repo.autoDetectCandidate(daysBack: 1)
-
-            XCTAssertEqual(candidate?.startSec, start)
-            XCTAssertEqual(candidate?.durationMin, 13,
-                           "the visible card must keep the published 12-minute policy")
-            XCTAssertTrue(diagnostics.contains { $0.contains("minSustainedMin=12.0") })
+            let maybeCandidate = await repo.autoDetectCandidate(daysBack: 1)
+            let candidate = try XCTUnwrap(maybeCandidate)
+            XCTAssertEqual(candidate.startSec, start)
+            XCTAssertEqual(candidate.durationMin, 13)
+            XCTAssertTrue(diagnostics.contains { $0.contains("minSustainedMin=10.0") })
             XCTAssertTrue(diagnostics.contains {
                 $0.contains("workout shadow policy=10min candidates=1")
-            }, "10-minute evaluation must remain a local diagnostic: \(diagnostics)")
+            }, "10-minute evaluation must remain locally diagnosable: \(diagnostics)")
             XCTAssertTrue(diagnostics.contains {
                 $0.contains("workout shadow policy=15min candidates=0")
-            }, "15-minute evaluation must remain a local diagnostic: \(diagnostics)")
+            }, "15-minute evaluation must remain locally diagnosable: \(diagnostics)")
 
-            let importedRows = try await store.workouts(
+            let didSave = await repo.saveDetectedWorkout(candidate)
+            XCTAssertTrue(didSave, "automatic logging must report a durable save")
+            let savedRows = try await store.workouts(
                 deviceId: deviceId, from: start - 1, to: start + 86_400, limit: 100)
-            let computedRows = try await store.workouts(
-                deviceId: deviceId + "-noop", from: start - 1, to: start + 86_400, limit: 100)
-            XCTAssertTrue(importedRows.isEmpty)
-            XCTAssertTrue(computedRows.isEmpty,
-                          "published and shadow detection must stay read-only until Save")
+            XCTAssertEqual(savedRows.count, 1)
+            XCTAssertEqual(savedRows.first?.sport, "Workout")
+            XCTAssertEqual(savedRows.first?.source, "manual")
+            XCTAssertEqual(savedRows.first?.startTs, start)
+
+            let nextCandidate = await repo.autoDetectCandidate(daysBack: 1)
+            XCTAssertNil(nextCandidate, "a saved window must not be detected and logged a second time")
         }
     }
 

@@ -2985,26 +2985,19 @@ final class Repository: ObservableObject {
     ///    then retires the stale strap row. A failed write therefore preserves the original;
     ///  - an IMPORTED row is never passed here as `replacing` (duplicating one is a pure add), so its
     ///    history is never touched.
-    func saveManualWorkout(_ row: WorkoutRow, replacing old: WorkoutRow? = nil) async {
-        guard let store = await ensureStore() else { return }
+    @discardableResult
+    func saveManualWorkout(_ row: WorkoutRow, replacing old: WorkoutRow? = nil) async -> Bool {
+        guard let store = await ensureStore() else { return false }
         if let old, WorkoutSource.classify(old.source) == .detected {
-            // Write the replacement first. If that insert fails, the grandfathered source row and its
-            // visibility remain untouched; a failed explicit edit must not turn into data loss.
             do { _ = try await store.upsertWorkouts([row], deviceId: deviceId) }
-            catch { return }
+            catch { return false }
             await dismissDetected(old)
-            return
+            return true
         } else if let old, old.startTs != row.startTs || old.sport != row.sport {
-            // Write the replacement before deleting anything. If SQLite rejects the insert, leave both the
-            // original row and its route untouched; if the later delete fails, the recoverable result is two
-            // rows rather than lost history.
             do { _ = try await store.upsertWorkouts([row], deviceId: deviceId) }
-            catch { return }
-            // #10: the GPS route lives in RouteStore keyed by the natural key (startTs + sport), NOT in the
-            // DB row. Copy it only after the replacement row is durable. Keep the old copy until the old
-            // DB row is successfully retired, so a delete failure preserves both complete versions.
-            // WITH points: this re-stores under a new natural key, and `load` hands back a drawable route
-            // only, so a plain load here would drop the recorded measurements on every edit.
+            catch { return false }
+            // The GPS route is keyed by the natural key (startTs + sport). Copy it only after the
+            // replacement row is durable; keep the old copy until the old row is retired.
             let oldRoute = RouteStore.loadWithPoints(startTs: old.startTs, sport: old.sport)
             if let route = oldRoute {
                 RouteStore.store(route, startTs: row.startTs, sport: row.sport)
@@ -3018,9 +3011,14 @@ final class Repository: ObservableObject {
             } catch {
                 // Replacement and both route keys remain available; retrying the edit is safe.
             }
-            return
+            return true
         }
-        _ = try? await store.upsertWorkouts([row], deviceId: deviceId)
+        do {
+            _ = try await store.upsertWorkouts([row], deviceId: deviceId)
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// Re-label a legacy detected bout: copy it to a manual strap row with the chosen sport, then delete
@@ -3239,6 +3237,16 @@ final class Repository: ObservableObject {
         guard samples.count >= 2 else { return nil }
         let hr = samples.map { (ts: $0.ts, bpm: $0.bpm) }
 
+        // WHOOP 5.0 historical motion is stored as timestamped gravity samples. Use the
+        // existing detector's motion corroboration when there is a usable series; if the
+        // strap has not supplied motion history, preserve the explicit HR-only fallback.
+        // This is a motion proxy from the stored gravity vector, not a claim to reproduce
+        // WHOOP's proprietary on-band classifier.
+        let gravity = await gravitySamplesUnion(from: from, to: now, limit: 200_000)
+        let motionEvidence: [AutoWorkoutDetector.MotionPoint]? = gravity.count >= 2
+            ? AutoWorkoutDetector.motionPoints(gravity)
+            : nil
+
         // Resting HR: most recent nightly RHR in range, else the detector's own default (60).
         let restingBpm = days.last(where: { $0.restingHr != nil })?.restingHr
 
@@ -3246,15 +3254,16 @@ final class Repository: ObservableObject {
         let saved = await workoutRows()
         let savedSpans = saved.map { SavedWorkoutSpan(startSec: $0.startTs, endSec: $0.endTs) }
 
-        // Workouts & GPS test mode: the published 12-minute result remains byte-identical. Aggregate,
-        // local-only comparisons include that 12-minute baseline plus the 10- and 15-minute alternatives.
-        // Shadow candidates are compared only with manual/imported labels; legacy detector rows are not
-        // ground truth. No shadow output can mutate the DB, visible card, daily scores or anything off-device.
+        // WHOOP-reference auto-detection policy: sustained, significant cardiovascular exertion
+        // for at least 10 minutes. The reference app exposes a 10-minute activity-detection caption;
+        // its executable classifier is proprietary, so retain our transparent HR + motion gates
+        // rather than claiming a byte-for-byte port. The detector's 12-minute default remains
+        // unchanged for other callers and Android parity. Shadow comparisons remain local-only.
         let candidates: [DetectedWorkout]
         if TestCentre.active(.workouts), workoutsLog != nil {
             let (results, trace) = AutoWorkoutDetector.detectTrace(
-                hr: hr, restingBpm: restingBpm, motion: nil, savedSpans: savedSpans,
-                minimumSustainedMinutes: AutoWorkoutDetector.minSustainedMin,
+                hr: hr, restingBpm: restingBpm, motion: motionEvidence, savedSpans: savedSpans,
+                minimumSustainedMinutes: 10.0,
                 path: "autoDetect")
             for line in trace { emitWorkouts(line) }
             let labelledSpans = saved
@@ -3267,14 +3276,14 @@ final class Repository: ObservableObject {
                 }
                 .map { SavedWorkoutSpan(startSec: $0.startTs, endSec: $0.endTs) }
             for line in AutoWorkoutDetector.shadowComparisonLines(
-                hr: hr, restingBpm: restingBpm, motion: nil, savedSpans: labelledSpans) {
+                hr: hr, restingBpm: restingBpm, motion: motionEvidence, savedSpans: labelledSpans) {
                 emitWorkouts(line)
             }
             candidates = results
         } else {
             candidates = AutoWorkoutDetector.detect(hr: hr, restingBpm: restingBpm,
-                                                    motion: nil, savedSpans: savedSpans,
-                                                    minimumSustainedMinutes: AutoWorkoutDetector.minSustainedMin)
+                                                    motion: motionEvidence, savedSpans: savedSpans,
+                                                    minimumSustainedMinutes: 10.0)
         }
         return Self.selectAutoDetectCandidate(
             candidates,
@@ -3293,8 +3302,7 @@ final class Repository: ObservableObject {
         guard let row = WorkoutSource.buildManualRow(start: start, durationMin: durationMin,
                                                      sport: "Workout", avgHr: w.avgBpm,
                                                      energyKcal: nil) else { return false }
-        await saveManualWorkout(row)
-        return true
+        return await saveManualWorkout(row)
     }
 
     /// DISMISS a suggested window: record its span durably so it never re-prompts. Idempotent.
