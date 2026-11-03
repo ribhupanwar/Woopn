@@ -3239,6 +3239,16 @@ final class Repository: ObservableObject {
         guard samples.count >= 2 else { return nil }
         let hr = samples.map { (ts: $0.ts, bpm: $0.bpm) }
 
+        // WHOOP 5.0 historical motion is stored as timestamped gravity samples. Use the
+        // existing detector's motion corroboration when there is a usable series; if the
+        // strap has not supplied motion history, preserve the explicit HR-only fallback.
+        // This is a motion proxy from the stored gravity vector, not a claim to reproduce
+        // WHOOP's proprietary on-band classifier.
+        let gravity = await gravitySamplesUnion(from: from, to: now, limit: 200_000)
+        let motionEvidence: [AutoWorkoutDetector.MotionPoint]? = gravity.count >= 2
+            ? AutoWorkoutDetector.motionPoints(gravity)
+            : nil
+
         // Resting HR: most recent nightly RHR in range, else the detector's own default (60).
         let restingBpm = days.last(where: { $0.restingHr != nil })?.restingHr
 
@@ -3253,7 +3263,7 @@ final class Repository: ObservableObject {
         let candidates: [DetectedWorkout]
         if TestCentre.active(.workouts), workoutsLog != nil {
             let (results, trace) = AutoWorkoutDetector.detectTrace(
-                hr: hr, restingBpm: restingBpm, motion: nil, savedSpans: savedSpans,
+                hr: hr, restingBpm: restingBpm, motion: motionEvidence, savedSpans: savedSpans,
                 minimumSustainedMinutes: AutoWorkoutDetector.minSustainedMin,
                 path: "autoDetect")
             for line in trace { emitWorkouts(line) }
@@ -3267,13 +3277,13 @@ final class Repository: ObservableObject {
                 }
                 .map { SavedWorkoutSpan(startSec: $0.startTs, endSec: $0.endTs) }
             for line in AutoWorkoutDetector.shadowComparisonLines(
-                hr: hr, restingBpm: restingBpm, motion: nil, savedSpans: labelledSpans) {
+                hr: hr, restingBpm: restingBpm, motion: motionEvidence, savedSpans: labelledSpans) {
                 emitWorkouts(line)
             }
             candidates = results
         } else {
             candidates = AutoWorkoutDetector.detect(hr: hr, restingBpm: restingBpm,
-                                                    motion: nil, savedSpans: savedSpans,
+                                                    motion: motionEvidence, savedSpans: savedSpans,
                                                     minimumSustainedMinutes: AutoWorkoutDetector.minSustainedMin)
         }
         return Self.selectAutoDetectCandidate(
