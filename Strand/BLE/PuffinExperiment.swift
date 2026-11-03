@@ -242,7 +242,7 @@ enum PuffinExperiment {
     /// Test Centre view via @AppStorage on this key. Mirrors the Android `PuffinExperiment.KEY_HRV_READINESS`.
     static let hrvReadinessKey = "noopHrvReadiness"
 
-    /// Opt-in "Auto-detect workouts": after a sync / on Today appear, scan the last day or two of HR for a
+    /// "Auto-detect workouts" (default ON for new installs): after a sync / on Today appear, scan the last day or two of HR for a
     /// SUSTAINED-ELEVATED window (resting HR + 30 bpm held ≥ 12 min) that doesn't overlap a saved workout,
     /// and surface ONE dismissible Today card offering to save it as a manual-style workout. Pure read +
     /// suggestion: nothing is ever created without the user tapping Save, and turning this OFF stops all
